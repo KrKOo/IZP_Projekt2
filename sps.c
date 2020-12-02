@@ -224,6 +224,36 @@ int icol(Table *table, int colID)
     return 0;
 }
 
+int dcol(Table *table, int colID)
+{
+    for(int i = 0; i < table->length; i++)
+    {
+        cell_dtor(&table->rows[i].cells[colID-1]);
+        memmove(&table->rows[i].cells[colID - 1], &table->rows[i].cells[colID], (table->rows[i].allocated - (colID)) * sizeof(Cell));
+
+        table->rows[i].cells = realloc(table->rows[i].cells, (table->rows[i].allocated - 1) * sizeof(Cell));
+        table->rows[i].allocated--;
+        table->rows[i].length--;
+
+    }
+
+    return 0;
+}
+
+int alignTable(Table *table, int colCount)
+{
+    for(int i = 0; i < table->length; i++)
+    {
+        if(table->rows[i].length < colCount)
+        {
+            allocateCellsToRow(&table->rows[i], colCount - table->rows[i].length);
+            table->rows[i].length = colCount;
+        }
+    }
+
+    return 0;
+}
+
 void printTable(Table *table, char delim)
 {
     //printf("%d", table->length);
@@ -231,7 +261,16 @@ void printTable(Table *table, char delim)
     {
         //printf("Length: %d Allocated: %d\n", table->rows[i].length, table->rows[i].allocated);
         for(int j = 0; j < table->rows[i].length; j++)
-            printf("%s%c", (table->rows[i].cells[j].value) ? table->rows[i].cells[j].value : "", delim);
+        {
+            if(j < table->rows[i].length-1)
+            {
+                printf("%s%c", (table->rows[i].cells[j].value) ? table->rows[i].cells[j].value : "", delim);
+            }
+            else
+            {
+                printf("%s", (table->rows[i].cells[j].value) ? table->rows[i].cells[j].value : "");
+            }
+        }
         putchar('\n');
     }
 }
@@ -264,7 +303,8 @@ int loadTableFromFile(Table *table, char *filename, char *delim)
             cell_dtor(&cell);
             cell_ctor(&cell);            
             rowID++;
-            if(colID < maxColID)
+            colID++;
+            if(colID > maxColID)
                 maxColID = colID;
             colID = 0;
         }
@@ -281,15 +321,32 @@ int loadTableFromFile(Table *table, char *filename, char *delim)
 
 int main(int argc, char **argv)
 {
-    // (void)argc;
-    // (void)argv;
-
-    //Delim validation
-
     char *delim = " ";
-    if (argc > 2)
+    char *cmdSequence = "";
+    char *fileName = "";
+    if (argc > 3)
+    {
         if (strcmp(argv[1], "-d") == 0)
+        {
             delim = argv[2];
+            if (argc > 4)
+            {
+                cmdSequence = argv[3];
+                fileName = argv[4];
+            }
+            else
+            {
+                //ERROR
+            }
+            
+        }
+        cmdSequence = argv[2];
+        cmdSequence = argv[3];   
+    }
+    else
+    {
+        //ERROR
+    }
 
     if (isValidDelim(delim) == 0)
     {
@@ -300,12 +357,13 @@ int main(int argc, char **argv)
     Table table;
     table_ctor(&table);
     int colCount = loadTableFromFile(&table, "tab.txt", delim);
-    (void) colCount;
 
     //setCellValue(&table.rows[1].cells[2], "34q5");
 
     //drow(&table, 2);
-    icol(&table, 5);
+    printf("%d", colCount);
+    alignTable(&table, colCount);
+    //dcol(&table, 3);
 
     printTable(&table, delim[0]);
 
