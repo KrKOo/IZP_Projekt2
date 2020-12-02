@@ -212,7 +212,7 @@ int main(int argc, char **argv)
 
     fclose(inputFile);
 
-    for(int i = 0; i < table.length - 1; i++)
+    for(int i = 0; i < table.length; i++)
     {
         for(int j = 0; j < table.rows->length; j++)
         {
