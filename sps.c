@@ -276,9 +276,6 @@ int loadTableFromFile(Table *table, char *filename, char *delim)
     //drow(table, rowID+1);
     fclose(inputFile);
 
-<<<<<<< HEAD
-    for(int i = 0; i < table.length; i++)
-=======
     return maxColID;
 }
 
@@ -295,7 +292,6 @@ int main(int argc, char **argv)
             delim = argv[2];
 
     if (isValidDelim(delim) == 0)
->>>>>>> 4bf12ab4d7f6f5e0f84df350d870cf4b965b7e4a
     {
         //ERROR
         return 1;
