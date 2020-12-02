@@ -96,7 +96,12 @@ int addEmptyRow(Table *table)
 int allocateCellsToRow(Row *row)
 {
     row->cells = realloc(row->cells, (row->allocated + CELL_ALLOC_SIZE) * sizeof(Cell));
+    for(int i = row->allocated; i < row->allocated + CELL_ALLOC_SIZE; i++)
+        cell_ctor(&row->cells[i]);
+
     row->allocated += CELL_ALLOC_SIZE;
+
+    
 
     return 0;
 }
@@ -132,6 +137,18 @@ int appendCharToCell(Cell *cell, char c)
     return 0;
 }
 
+int setCellValue(Cell *cell, char *value)
+{
+    int valueSize = strlen(value);
+
+    cell->value = realloc(cell->value, valueSize + 1);
+    cell->allocated = valueSize + 1;
+    strcpy(cell->value, value);
+    cell->length = valueSize + 1;
+
+    return 0;
+}
+
 int isValidDelim(char *delim)
 {
     if (strchr(delim, '"') != NULL)
@@ -153,10 +170,89 @@ bool isCharInString(char c, char *str)
     return false;
 }
 
+// int alignTable(Table *table, int colCount)
+// {
+//     for(int i = 0; i < table->length; i++)
+
+// }
+
+
+int drow(Table *table, int rowID)
+{
+    for(int i = 0; i < table->rows[rowID - 1].allocated; i++)
+    {
+        cell_dtor(&table->rows[rowID - 1].cells[i]);
+    }
+    row_dtor(&table->rows[rowID - 1]);
+
+    memmove(&table->rows[rowID-1], &table->rows[rowID], (table->allocated - (rowID)) * sizeof(Row));
+    
+    table->rows = realloc(table->rows, (table->allocated - 1) * sizeof(Row));
+    table->allocated--;
+    table->length--;
+
+    return 0;
+}
+
+void printTable(Table *table, char delim)
+{
+    for(int i = 0; i < table->length; i++)
+    {
+        for(int j = 0; j < table->rows->length; j++)
+            printf("%s%c", table->rows[i].cells[j].value, delim);
+        putchar('\n');
+    }
+}
+
+int loadTableFromFile(Table *table, char *filename, char *delim)
+{
+    Cell cell;
+    cell_ctor(&cell);
+
+    FILE *inputFile = fopen(filename, "r");
+
+    char c;
+    int rowID = 0;
+    int colID = 0;
+    int maxColID = 0;
+    addEmptyRow(table);
+    while ((c = fgetc(inputFile)) != EOF)
+    {
+        if(isCharInString(c, delim))
+        {
+            appendCharToCell(&cell, '\0');
+            addCellToRow(&table->rows[rowID], cell.value);
+            cell_dtor(&cell);
+            cell_ctor(&cell);
+            colID++;
+        }
+        else if(c == '\n')
+        {
+            appendCharToCell(&cell, '\0');
+            addCellToRow(&table->rows[rowID], cell.value);
+            cell_dtor(&cell);
+            cell_ctor(&cell);
+            addEmptyRow(table);
+            rowID++;
+            if(colID < maxColID)
+                maxColID = colID;
+            colID = 0;
+        }
+        else
+        {
+            appendCharToCell(&cell, c);
+        }
+    }
+
+    fclose(inputFile);
+
+    return maxColID;
+}
+
 int main(int argc, char **argv)
 {
-    (void)argc;
-    (void)argv;
+    // (void)argc;
+    // (void)argv;
 
     //Delim validation
 
@@ -172,55 +268,18 @@ int main(int argc, char **argv)
     }
 
     Table table;
-
     table_ctor(&table);
+    int colCount = loadTableFromFile(&table, "tab.txt", delim);
+    (void) colCount;
 
-    Cell cell;
-    cell_ctor(&cell);
+    //setCellValue(&table.rows[1].cells[2], "34q5");
 
-    FILE *inputFile = fopen("tab.txt", "r");
-    char c;
-    int rowID = 0;
-    int colID = 0;
-    addEmptyRow(&table);
-    while ((c = fgetc(inputFile)) != EOF)
-    {
-        
-        if(isCharInString(c, delim))
-        {
-            appendCharToCell(&cell, '\0');
-            addCellToRow(&table.rows[rowID], cell.value);
-            cell_dtor(&cell);
-            cell_ctor(&cell);
-            colID++;
-        }
-        else if(c == '\n')
-        {
-            appendCharToCell(&cell, '\0');
-            addCellToRow(&table.rows[rowID], cell.value);
-            cell_dtor(&cell);
-            cell_ctor(&cell);
-            addEmptyRow(&table);
-            rowID++;
-            colID=0;
-        }
-        else
-        {
-            appendCharToCell(&cell, c);
-        }
-    }
+    //drow(&table, 2);
 
-    fclose(inputFile);
+    printTable(&table, delim[0]);
 
-    for(int i = 0; i < table.length - 1; i++)
-    {
-        for(int j = 0; j < table.rows->length; j++)
-        {
-            printf("%s%c", table.rows[i].cells[j].value, delim[0]);
-        }
-        putchar('\n');
-    }
-
+    
+    
     table_dtor(&table);
 
     return 0;
