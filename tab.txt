@@ -1,5 +1,5 @@
  Jmeno Prijmeni Plat
-1 Bill Gates 15000000
-2 Franta Odvedle 15000000
-3 Pepik Ajtak 15000000
+34 Bill Gates df
+2342 Franta Odvedle 42343
+343 Pepik Ajtak 15
 asdf

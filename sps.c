@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <limits.h>
 
 #define ROW_ALLOC_SIZE 5
 #define CELL_ALLOC_SIZE 5
@@ -23,6 +24,14 @@ typedef struct {
     int length;
     int allocated;
 } Table;
+
+typedef struct {
+    int fromRow;
+    int toRow;
+    int fromCol;
+    int toCol;
+} Selection;
+
 
 int cell_ctor(Cell *cell)
 {
@@ -82,6 +91,22 @@ int table_dtor(Table *table)
     }
     free(table->rows);
     return 0;
+}
+
+void selection_ctor(Selection *selection)
+{
+    selection->fromRow = 0;
+    selection->toRow = 0;
+    selection->fromCol = 0;
+    selection->toCol = 0;
+}
+
+void setSelection(Selection *selection, int fromRow, int toRow, int fromCol, int toCol)
+{
+    selection->fromRow = fromRow;
+    selection->toRow = toRow;
+    selection->fromCol = fromCol;
+    selection->toCol = toCol;
 }
 
 int allocateRowsToTable(Table *table, int n)
@@ -279,7 +304,6 @@ int loadTableFromFile(Table *table, char *filename, char *delim)
 {
     Cell cell;
     cell_ctor(&cell);
-
     FILE *inputFile = fopen(filename, "r");
 
     char c;
@@ -313,10 +337,195 @@ int loadTableFromFile(Table *table, char *filename, char *delim)
             appendCharToCell(&cell, c);
         }
     }
-    //drow(table, rowID+1);
     fclose(inputFile);
 
     return maxColID;
+}
+
+int findMaxNumber(Table *table, Selection *selection)
+{
+    int max = INT_MIN;
+    int rowID, colID;
+    for(rowID = 0; rowID < table->length; rowID++)
+    {
+        for(colID = 0; colID < table->rows[rowID].length; colID++)
+        {
+            char *endPtr = NULL;
+            if(table->rows[rowID].cells[colID].value != NULL)
+            {
+                int number = strtol(table->rows[rowID].cells[colID].value, &endPtr, 10);
+                if(number > max)
+                {
+                    max = number;
+                    setSelection(selection, rowID, rowID, colID, colID);
+                }
+            }
+        }
+    }
+    return 1;
+}
+
+int findMinNumber(Table *table, Selection *selection)
+{
+    int min = INT_MAX;
+    int rowID, colID;
+    for(rowID = 0; rowID < table->length; rowID++)
+    {
+        for(colID = 0; colID < table->rows[rowID].length; colID++)
+        {
+            char *endPtr = NULL;
+            if(table->rows[rowID].cells[colID].value != NULL)
+            {
+                char *cellValue = table->rows[rowID].cells[colID].value;
+                int number = strtol(cellValue, &endPtr, 10);
+                
+                if(min > number && *endPtr == '\0' && endPtr != cellValue)
+                {
+                    min = number;
+                    setSelection(selection, rowID, rowID, colID, colID);
+                }
+            }
+        }
+    }
+    return 1;
+}
+
+int findString(Table *table, Selection *selection, char *str)
+{
+    int rowID, colID;
+    for(rowID = 0; rowID < table->length; rowID++)
+    {
+        for(colID = 0; colID < table->rows[rowID].length; colID++)
+        {
+            if(strcmp(table->rows[rowID].cells[colID].value, str) == 0)
+            {
+                setSelection(selection, rowID, rowID, colID, colID);
+                return 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+int commandExecutor(Table *table, char *cmd, Selection *selection)
+{
+    if(strcmp(cmd, "irow") == 0)
+    {
+        irow(table, selection->fromRow);
+    }
+
+    (void) selection;
+
+    return 1;
+}
+
+int parseSelection(Table *table, char *selectionStr, Selection *selection, Selection *tempSelection)
+{
+    char *selectionStrCopy = malloc((strlen(selectionStr) + 1) * sizeof(char));
+    strcpy(selectionStrCopy, selectionStr);
+
+    bool isFind = false;
+    char *lastPtr = &selectionStrCopy[1];
+    int arrIndex = 0;
+    for(int i = 1; selectionStrCopy[i] != '\0'; i++)
+    {
+        if(selectionStrCopy[i] == ',' || selectionStrCopy[i] == ']' || selectionStrCopy[i] == ' ')
+        {
+            bool end = false;
+            if(selectionStrCopy[i] == ']')
+                end = true;
+
+            selectionStrCopy[i] = '\0';
+            char *endPtr = NULL;
+            int value = strtol(lastPtr, &endPtr, 10);
+            if(strcmp(lastPtr, "min") == 0)
+            {
+                findMinNumber(table, selection);
+                break;
+            }
+            else if(strcmp(lastPtr, "max") == 0)
+            {
+                findMaxNumber(table, selection);
+                break;
+            }
+            else if(strcmp(lastPtr, "find") == 0)
+            {
+                isFind = true;
+            }
+            else if(isFind)
+            {
+                printf("%s", lastPtr);
+                findString(table, selection, lastPtr);
+                break;
+            }
+            else if(strcmp(lastPtr, "_") == 0)
+            {
+                if(arrIndex == 0 && end)
+                {
+                    selection = tempSelection;
+                    break;
+                }
+                if(arrIndex == 0)
+                {
+                    selection->fromRow = 0;
+                    selection->toRow = -1;
+                }
+                else if(arrIndex == 1)
+                {
+                    selection->fromCol = 0;
+                    selection->toCol = -1;
+                }     
+                else
+                {
+                    //ERROR
+                }         
+            }
+            else if(arrIndex == 0)
+            {
+                selection->fromRow = value;
+                selection->toRow = value;
+            }
+            else if(arrIndex == 1)
+            {
+                selection->fromCol = value;
+                selection->toCol = value;
+            }
+            else if(arrIndex == 2)
+                selection->toRow = value;
+            else if(arrIndex == 3)
+                selection->toCol = value;
+
+            arrIndex++;
+            lastPtr = &selectionStrCopy[i+1];
+        }
+    }
+
+    printf("fromRow: %d\n", selection->fromRow);
+    printf("toRow: %d\n", selection->toRow);
+    printf("fromCol: %d\n", selection->fromCol);
+    printf("toCol: %d\n", selection->toCol);
+
+    free(selectionStrCopy);
+    return 1;
+}
+
+int parseCommands(Table *table, char *cmdSequence, Selection *tempSelection)
+{
+    char *cmd;
+    Selection selection;
+    cmd = strtok(cmdSequence, ";");
+    while(cmd != NULL)
+    {
+        if(cmd[0] == '[')
+        {
+            parseSelection(table, cmd, &selection, tempSelection);
+        }
+        printf("%s\n", cmd);
+        cmd = strtok(NULL, ";");
+    }
+
+    return 0;
 }
 
 int main(int argc, char **argv)
@@ -324,12 +533,17 @@ int main(int argc, char **argv)
     char *delim = " ";
     char *cmdSequence = "";
     char *fileName = "";
-    if (argc > 3)
+    for(int i = 0; i < argc; i++)
+    {
+        char* asdf = argv[i];
+        (void) asdf;
+    }
+    if (argc > 2)
     {
         if (strcmp(argv[1], "-d") == 0)
         {
             delim = argv[2];
-            if (argc > 4)
+            if (argc > 3)
             {
                 cmdSequence = argv[3];
                 fileName = argv[4];
@@ -340,8 +554,11 @@ int main(int argc, char **argv)
             }
             
         }
-        cmdSequence = argv[2];
-        cmdSequence = argv[3];   
+        else
+        {
+            cmdSequence = argv[1];
+            fileName = argv[2]; 
+        }
     }
     else
     {
@@ -354,18 +571,23 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    
+
     Table table;
     table_ctor(&table);
-    int colCount = loadTableFromFile(&table, "tab.txt", delim);
+    Selection tempSelection;
+    selection_ctor(&tempSelection);
+            
+    int colCount = loadTableFromFile(&table, fileName, delim);
 
     //setCellValue(&table.rows[1].cells[2], "34q5");
 
     //drow(&table, 2);
-    printf("%d", colCount);
     alignTable(&table, colCount);
+    parseCommands(&table, cmdSequence, &tempSelection);
     //dcol(&table, 3);
 
-    printTable(&table, delim[0]);
+    //printTable(&table, delim[0]);
 
     table_dtor(&table);
 
