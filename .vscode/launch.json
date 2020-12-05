@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${fileDirname}/${fileBasenameNoExtension}",
-            "args": ["-d", " ", "'[2,1];[min]'", "tab.txt"],
+            "args": ["-d", " ", "[1,1,3,3]:sum [1,1]", "tab.txt"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

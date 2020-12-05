@@ -1,5 +1,5 @@
  Jmeno Prijmeni Plat
-34 Bill Gates df
-2342 Franta Odvedle 42343
-343 Pepik Ajtak 15
+1 Bill Gates df
+2 Franta Odvedle 4
+3 Pepik Ajtak 5
 asdf
