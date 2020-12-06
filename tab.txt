@@ -1,4 +1,4 @@
-  Jmeno Plat Prijmeni
-1 1 Bill 15000000 Gates
-2 2 Franta 15000000 Odvedle
-3 3 Pepik 15000000 Ajtak
+     Jmeno    Plat    Prijmeni
+1  1 1 1 Bill 1 1 1 15000000 1 1 1 Gates
+2 1 2 2 2 Franta 2 2 2 15000000 2 2 2 Odvedle
+   3  Pepik 3 3 3 15000000 3 3 3 Ajtak

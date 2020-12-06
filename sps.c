@@ -9,6 +9,14 @@
 #define COMMAND_COUNT 16
 #define TEMP_VAR_COUNT 10
 
+#define INVALID_MEMORY_ALLOCATION 1
+#define INVALID_DELIMITER 2
+#define INVALID_COMMAND 3
+#define INVALID_ARGUMENT_COUNT 4
+#define INVALID_SELECTION 5
+#define INVALID_COMMAND_ARGUMENT 6
+#define INVALID_VARIABLE 7
+
 typedef struct
 {
     char *value;
@@ -49,6 +57,26 @@ typedef union
     char *inputString;
     Position position;
 } CmdArgument;
+
+int error(int errorCode)
+{
+    if(errorCode == INVALID_MEMORY_ALLOCATION)
+        fprintf(stderr, "Memory could not be allocated!\n");
+    else if(errorCode == INVALID_DELIMITER)
+        fprintf(stderr, "Invalid delimiter specified!\n");
+    else if(errorCode == INVALID_COMMAND)
+        fprintf(stderr, "Invalid command specified!\n");
+    else if(errorCode == INVALID_ARGUMENT_COUNT)
+        fprintf(stderr, "Invalid argument count!\n");
+    else if(errorCode == INVALID_SELECTION)
+        fprintf(stderr, "Invalid selection!\n");
+    else if(errorCode == INVALID_COMMAND_ARGUMENT)
+        fprintf(stderr, "Invalid command argument!\n");
+    else if(errorCode == INVALID_VARIABLE)
+        fprintf(stderr, "Invalid variable specified!\n");
+
+    return errorCode;    
+}
 
 int cell_ctor(Cell *cell)
 {
@@ -128,7 +156,9 @@ void setSelection(Selection *selection, int fromRow, int toRow, int fromCol, int
 
 int allocateRowsToTable(Table *table, int n)
 {
-    table->rows = realloc(table->rows, (table->allocated + n) * sizeof(Row));
+    if((table->rows = realloc(table->rows, (table->allocated + n) * sizeof(Row))) == NULL)
+        return INVALID_MEMORY_ALLOCATION;
+
     for (int i = table->allocated; i < table->allocated + n; i++)
         row_ctor(&table->rows[i]);
 
@@ -138,7 +168,9 @@ int allocateRowsToTable(Table *table, int n)
 
 int allocateCellsToRow(Row *row, int n)
 {
-    row->cells = realloc(row->cells, (row->allocated + n) * sizeof(Cell));
+    if((row->cells = realloc(row->cells, (row->allocated + n) * sizeof(Cell))) == NULL)
+        return INVALID_MEMORY_ALLOCATION;
+
     for (int i = row->allocated; i < row->allocated + n; i++)
         cell_ctor(&row->cells[i]);
 
@@ -148,20 +180,29 @@ int allocateCellsToRow(Row *row, int n)
 
 int addCellToRow(Table *table, int rowID, char *value)
 {
+    int retVal;
     if (table->length == table->allocated)
     {
-        allocateRowsToTable(table, (rowID + 1) - table->allocated);
+        if((retVal = allocateRowsToTable(table, (rowID + 1) - table->allocated)) != 0)
+        {
+            return retVal;
+        }
+
         table->length = rowID + 1;
     }
 
     Row *row = &table->rows[rowID];
 
     if (row->length == row->allocated)
-        allocateCellsToRow(row, CELL_ALLOC_SIZE);
+        if((retVal = allocateCellsToRow(row, CELL_ALLOC_SIZE)) != 0)
+            return retVal;
+        
 
     int valueLength = strlen(value);
 
-    row->cells[row->length].value = realloc(row->cells[row->length].value, (valueLength + 1) * sizeof(char));
+    if((row->cells[row->length].value = realloc(row->cells[row->length].value, (valueLength + 1) * sizeof(char))) == NULL)
+        return INVALID_MEMORY_ALLOCATION;
+
     row->cells[row->length].length = valueLength + 1;
     row->cells[row->length].allocated = valueLength + 1;
 
@@ -175,7 +216,9 @@ int appendCharToCell(Cell *cell, char c)
 {
     if (cell->length == cell->allocated)
     {
-        cell->value = realloc(cell->value, (cell->allocated + CELL_ALLOC_SIZE) * sizeof(char));
+        if((cell->value = realloc(cell->value, (cell->allocated + CELL_ALLOC_SIZE) * sizeof(char))) == NULL)
+            return INVALID_MEMORY_ALLOCATION;
+
         cell->allocated += CELL_ALLOC_SIZE;
     }
 
@@ -195,7 +238,9 @@ int setCellValue(Cell *cell, char *value)
 
     int valueSize = strlen(value);
 
-    cell->value = realloc(cell->value, (valueSize + 1) * sizeof(char));
+    if((cell->value = realloc(cell->value, (valueSize + 1) * sizeof(char))) == NULL)
+        return INVALID_MEMORY_ALLOCATION;
+
     strcpy(cell->value, value);
 
     cell->allocated = valueSize + 1;
@@ -207,11 +252,11 @@ int setCellValue(Cell *cell, char *value)
 int isValidDelim(char *delim)
 {
     if (strchr(delim, '"') != NULL)
-        return 0;
+        return INVALID_DELIMITER;
     if (strchr(delim, '\\') != NULL)
-        return 0;
+        return INVALID_DELIMITER;
 
-    return 1;
+    return 0;
 }
 
 bool isCharInString(char c, char *str)
@@ -242,7 +287,8 @@ int drow(Table *table, Selection *selection)
 
     int rowsToDelete = (toRow - selection->fromRow) + 1;
 
-    table->rows = realloc(table->rows, (table->allocated - rowsToDelete) * sizeof(Row));
+    if((table->rows = realloc(table->rows, (table->allocated - rowsToDelete) * sizeof(Row))) == NULL)
+        return INVALID_MEMORY_ALLOCATION;
     table->allocated -= rowsToDelete;
     table->length -= rowsToDelete;
 
@@ -251,12 +297,14 @@ int drow(Table *table, Selection *selection)
 
 int irow(Table *table, Selection *selection)
 {
+    int retVal;
     if (selection->fromRow > table->length)
         return -1;
 
     if (table->length == table->allocated)
     {
-        allocateRowsToTable(table, 1);
+        if((retVal = allocateRowsToTable(table, 1)) != 0)
+            return retVal;
     }
 
     int colCount = table->rows[0].allocated;
@@ -265,7 +313,8 @@ int irow(Table *table, Selection *selection)
     row_ctor(&table->rows[selection->fromRow]);
     table->length++;
 
-    allocateCellsToRow(&table->rows[selection->fromRow], colCount);
+    if((retVal = allocateCellsToRow(&table->rows[selection->fromRow], colCount)) != 0)
+        return retVal;
     table->rows[selection->fromRow].length = colCount;
 
     return 0;
@@ -273,12 +322,14 @@ int irow(Table *table, Selection *selection)
 
 int arow(Table *table, Selection *selection)
 {
+    int retVal;
     if (selection->toRow > table->length)
         return -1;
 
     if (table->length == table->allocated)
     {
-        allocateRowsToTable(table, 1);
+        if((retVal = allocateRowsToTable(table, 1)) != 0)
+            return retVal;
     }
 
     int colCount = table->rows[0].allocated;
@@ -287,7 +338,8 @@ int arow(Table *table, Selection *selection)
     row_ctor(&table->rows[selection->toRow + 1]);
     table->length++;
 
-    allocateCellsToRow(&table->rows[selection->toRow + 1], colCount);
+    if((retVal = allocateCellsToRow(&table->rows[selection->toRow + 1], colCount)) != 0)
+        return retVal;
     table->rows[selection->toRow + 1].length = colCount;
 
     return 0;
@@ -295,11 +347,13 @@ int arow(Table *table, Selection *selection)
 
 int icol(Table *table, Selection *selection)
 {
+    int retVal;
     for (int i = 0; i < table->length; i++)
     {
         if (table->rows[i].length == table->rows[i].allocated)
         {
-            allocateCellsToRow(&table->rows[i], 1);
+            if((retVal = allocateCellsToRow(&table->rows[i], 1)) != 0)
+                return retVal;
         }
 
         memmove(&table->rows[i].cells[selection->fromCol + 1], &table->rows[i].cells[selection->fromCol],
@@ -313,11 +367,13 @@ int icol(Table *table, Selection *selection)
 
 int acol(Table *table, Selection *selection)
 {
+    int retVal;
     for (int i = 0; i < table->length; i++)
     {
         if (table->rows[i].length == table->rows[i].allocated)
         {
-            allocateCellsToRow(&table->rows[i], 1);
+            if((retVal = allocateCellsToRow(&table->rows[i], 1)) != 0)
+                return INVALID_MEMORY_ALLOCATION;
         }
 
         memmove(&table->rows[i].cells[selection->toCol + 1], &table->rows[i].cells[selection->toCol],
@@ -344,11 +400,12 @@ int dcol(Table *table, Selection *selection)
 
         int colsToDelete = (toCol - selection->fromCol) + 1;
 
-        table->rows[i].cells = realloc(table->rows[i].cells, (table->rows[i].allocated - colsToDelete) * sizeof(Cell));
+        if((table->rows[i].cells = realloc(table->rows[i].cells, (table->rows[i].allocated - colsToDelete) * sizeof(Cell))) == NULL)
+            return INVALID_MEMORY_ALLOCATION;
+
         table->rows[i].allocated -= colsToDelete;
         table->rows[i].length -= colsToDelete;
     }
-
     return 0;
 }
 
@@ -366,11 +423,12 @@ int clear(Table *table, Selection *selection)
         }
     }
 
-    return 1;
+    return 0;
 }
 
 int swap(Table *table, Selection *selection, CmdArgument *inputArg)
 {
+    int retVal;
     int toRow = (selection->toRow > table->length) ? table->length - 1 : selection->toRow;
     int toCol = (selection->toCol > table->rows->length) ? table->rows->length - 1 : selection->toCol;
 
@@ -386,18 +444,22 @@ int swap(Table *table, Selection *selection, CmdArgument *inputArg)
 
             if (cell1->value != NULL)
             {
-                cell1Value = malloc(strlen(cell1->value) + 1);
+                if((cell1Value = malloc(strlen(cell1->value) + 1)) == NULL)
+                    return INVALID_MEMORY_ALLOCATION;
                 strcpy(cell1Value, cell1->value);
             }
 
             if (cell2->value != NULL)
             {
-                cell2Value = malloc(strlen(cell2->value) + 1);
+                if((cell2Value = malloc(strlen(cell2->value) + 1)) == NULL)
+                    return INVALID_MEMORY_ALLOCATION;
                 strcpy(cell2Value, cell2->value);
             }
 
-            setCellValue(cell1, cell2Value);
-            setCellValue(cell2, cell1Value);
+            if((retVal = setCellValue(cell1, cell2Value)) != 0)
+                return retVal;
+            if((retVal = setCellValue(cell2, cell1Value)) != 0)
+                return retVal;
 
             free(cell1Value);
             free(cell2Value);
@@ -439,19 +501,22 @@ void getSelectionSum(Table *table, Selection *selection, double *sum, int *count
 
 int sum(Table *table, Selection *selection, CmdArgument *inputArg)
 {
+    int retVal;
     double sum = 0;
     getSelectionSum(table, selection, &sum, NULL);
 
     char arr[16];
     sprintf(arr, "%g", sum);
 
-    setCellValue(&table->rows[inputArg->position.row].cells[inputArg->position.col], arr);
+    if((retVal = setCellValue(&table->rows[inputArg->position.row].cells[inputArg->position.col], arr)) != 0)
+        return retVal;
 
     return 0;
 }
 
 int avg(Table *table, Selection *selection, CmdArgument *inputArg)
 {
+    int retVal;
     double sum;
     int count;
     getSelectionSum(table, selection, &sum, &count);
@@ -462,13 +527,15 @@ int avg(Table *table, Selection *selection, CmdArgument *inputArg)
     char arr[16];
     sprintf(arr, "%g", sum / count);
 
-    setCellValue(&table->rows[inputArg->position.row].cells[inputArg->position.col], arr);
+    if((retVal = setCellValue(&table->rows[inputArg->position.row].cells[inputArg->position.col], arr)) != 0)
+        return retVal;
 
     return 0;
 }
 
 int set(Table *table, Selection *selection, CmdArgument *inputArg)
 {
+    int retVal = 0;
     int toRow = (selection->toRow > table->length) ? table->length - 1 : selection->toRow;
     int toCol = (selection->toCol > table->rows->length) ? table->rows->length - 1 : selection->toCol;
 
@@ -476,7 +543,8 @@ int set(Table *table, Selection *selection, CmdArgument *inputArg)
     {
         for (int j = selection->fromCol; j <= toCol; j++)
         {
-            setCellValue(&table->rows[i].cells[j], inputArg->inputString);
+            if((retVal = setCellValue(&table->rows[i].cells[j], inputArg->inputString)) != 0)
+                return retVal;
         }
     }
 
@@ -485,6 +553,7 @@ int set(Table *table, Selection *selection, CmdArgument *inputArg)
 
 int count(Table *table, Selection *selection, CmdArgument *inputArg)
 {
+    int retVal;
     int toRow = (selection->toRow > table->length) ? table->length - 1 : selection->toRow;
     int toCol = (selection->toCol > table->rows->length) ? table->rows->length - 1 : selection->toCol;
 
@@ -504,19 +573,22 @@ int count(Table *table, Selection *selection, CmdArgument *inputArg)
     char arr[16];
     sprintf(arr, "%d", count);
 
-    setCellValue(&table->rows[inputArg->position.row].cells[inputArg->position.col], arr);
+    if((retVal = setCellValue(&table->rows[inputArg->position.row].cells[inputArg->position.col], arr)) != 0)
+        return retVal;
 
     return 0;
 }
 
 int len(Table *table, Selection *selection, CmdArgument *inputArg)
 {
+    int retVal;
     int length = strlen(table->rows[selection->fromRow].cells[selection->fromCol].value);
 
     char arr[16];
     sprintf(arr, "%d", length);
 
-    setCellValue(&table->rows[inputArg->position.row].cells[inputArg->position.col], arr);
+    if((retVal = setCellValue(&table->rows[inputArg->position.row].cells[inputArg->position.col], arr)) != 0)
+        return retVal;
 
     return 0;
 }
@@ -534,8 +606,13 @@ int def(Table *table, Selection *selection, CmdArgument *inputArg, char *tempVar
         if (tempVar[varID] != NULL)
             free(tempVar[varID]);
 
-        tempVar[varID] = malloc((strlen(cellValue) + 1) * sizeof(char));
+        if((tempVar[varID] = malloc((strlen(cellValue) + 1) * sizeof(char))) == NULL)
+            return INVALID_MEMORY_ALLOCATION;
         strcpy(tempVar[varID], cellValue);
+    }
+    else
+    {
+        return INVALID_VARIABLE;
     }
 
     return 0;
@@ -554,9 +631,14 @@ int use(Table *table, Selection *selection, CmdArgument *inputArg, char *tempVar
         {
             for (int j = selection->fromCol; j <= toCol; j++)
             {
-                setCellValue(&table->rows[i].cells[j], tempVar[varID]);
+                if(setCellValue(&table->rows[i].cells[j], tempVar[varID]) != 0)
+                    return INVALID_MEMORY_ALLOCATION;
             }
         }
+    }
+    else
+    {
+        return INVALID_VARIABLE;
     }
 
     return 0;
@@ -578,7 +660,8 @@ int inc(CmdArgument *inputArg, char *tempVar[10])
                 char arr[16];
                 sprintf(arr, "%g", num);
 
-                tempVar[varID] = realloc(tempVar[varID], (strlen(arr) + 1) * sizeof(char));
+                if((tempVar[varID] = realloc(tempVar[varID], (strlen(arr) + 1) * sizeof(char))) == NULL)
+                    return INVALID_MEMORY_ALLOCATION;
                 strcpy(tempVar[varID], arr);
             }
         }
@@ -588,9 +671,14 @@ int inc(CmdArgument *inputArg, char *tempVar[10])
             char arr[16];
             sprintf(arr, "%g", num);
 
-            tempVar[varID] = malloc((strlen(arr) + 1) * sizeof(char));
+            if((tempVar[varID] = malloc((strlen(arr) + 1) * sizeof(char))) == NULL)
+                return INVALID_MEMORY_ALLOCATION;
             strcpy(tempVar[varID], arr);
         }
+    }
+    else
+    {
+        return INVALID_VARIABLE;
     }
 
     return 0;
@@ -598,9 +686,11 @@ int inc(CmdArgument *inputArg, char *tempVar[10])
 
 int alignTable(Table *table, int rowCount, int colCount)
 {
+    int retVal;
     if (rowCount > table->allocated)
     {
-        allocateRowsToTable(table, rowCount - table->allocated);
+        if((retVal = allocateRowsToTable(table, rowCount - table->allocated)) != 0)
+            return retVal;
         table->length = rowCount;
     }
 
@@ -608,7 +698,8 @@ int alignTable(Table *table, int rowCount, int colCount)
     {
         if (table->rows[i].length < colCount)
         {
-            allocateCellsToRow(&table->rows[i], colCount - table->rows[i].length);
+            if((retVal = allocateCellsToRow(&table->rows[i], colCount - table->rows[i].length)) != 0)
+                return retVal;
             table->rows[i].length = colCount;
         }
     }
@@ -637,7 +728,6 @@ int printTableToFile(Table *table, char delim, char *filename)
     FILE *outputFile = fopen(filename, "w");
     for (int i = 0; i < table->length; i++)
     {
-        //printf("Length: %d Allocated: %d\n", table->rows[i].length, table->rows[i].allocated);
         for (int j = 0; j < maxRowLength; j++)
         {
             if (j < table->rows[i].length - 1)
@@ -682,6 +772,7 @@ void printTable(Table *table, char delim)
 
 int loadTableFromFile(Table *table, char *filename, char *delim)
 {
+    int retVal;
     Cell cell;
     cell_ctor(&cell);
     FILE *inputFile = fopen(filename, "r");
@@ -694,16 +785,20 @@ int loadTableFromFile(Table *table, char *filename, char *delim)
     {
         if (isCharInString(c, delim))
         {
-            appendCharToCell(&cell, '\0');
-            addCellToRow(table, rowID, cell.value);
+            if((retVal = appendCharToCell(&cell, '\0')) != 0)
+                return retVal;
+            if((retVal = addCellToRow(table, rowID, cell.value)) != 0)
+                return retVal;
             cell_dtor(&cell);
             cell_ctor(&cell);
             colID++;
         }
         else if (c == '\n')
         {
-            appendCharToCell(&cell, '\0');
-            addCellToRow(table, rowID, cell.value);
+            if((retVal = appendCharToCell(&cell, '\0')) != 0)
+                return retVal;
+            if((retVal = addCellToRow(table, rowID, cell.value)) != 0)
+                return retVal;
             cell_dtor(&cell);
             cell_ctor(&cell);
             rowID++;
@@ -714,7 +809,8 @@ int loadTableFromFile(Table *table, char *filename, char *delim)
         }
         else
         {
-            appendCharToCell(&cell, c);
+            if((retVal = appendCharToCell(&cell, c)) != 0)
+                return retVal;
         }
     }
     fclose(inputFile);
@@ -750,7 +846,7 @@ int findMaxNumber(Table *table, Selection *selection)
 
     setSelection(selection, res.fromRow, res.toRow, res.fromCol, res.toCol);
 
-    return 1;
+    return 0;
 }
 
 int findMinNumber(Table *table, Selection *selection)
@@ -780,7 +876,7 @@ int findMinNumber(Table *table, Selection *selection)
 
     setSelection(selection, res.fromRow, res.toRow, res.fromCol, res.toCol);
 
-    return 1;
+    return 0;
 }
 
 int findString(Table *table, Selection *selection, char *str)
@@ -793,7 +889,7 @@ int findString(Table *table, Selection *selection, char *str)
             if (strcmp(table->rows[rowID].cells[colID].value, str) == 0)
             {
                 setSelection(selection, rowID, rowID, colID, colID);
-                return 1;
+                return 0;
             }
         }
     }
@@ -828,34 +924,40 @@ commandList cmdList[COMMAND_COUNT - 1] = {
 
 int commandExecutor(Table *table, char *cmd, Selection *selection, CmdArgument *inputArg, char *tempVar[10])
 {
+    int retVal;
     for (int i = 0; i < COMMAND_COUNT - 1; i++)
     {
         if (strcmp(cmd, cmdList[i].cmd) == 0)
         {
             if (cmdList[i].inputArg && cmdList[i].tempVar)
-                cmdList[i].function(table, selection, inputArg, tempVar);
+                retVal = cmdList[i].function(table, selection, inputArg, tempVar);
             else if (cmdList[i].inputArg)
-                cmdList[i].function(table, selection, inputArg);
+                retVal = cmdList[i].function(table, selection, inputArg);
             else if (cmdList[i].tempVar)
-                cmdList[i].function(table, selection, tempVar);
+                retVal = cmdList[i].function(table, selection, tempVar);
             else
-                cmdList[i].function(table, selection);
-            return 0;
+                retVal = cmdList[i].function(table, selection);
+
+            return retVal;
         }
     }
 
     if (strcmp(cmd, "inc") == 0)
     {
-        inc(inputArg, tempVar);
-        return 0;
+        retVal = inc(inputArg, tempVar);
+        return retVal;
     }
 
-    return -1; //command Not Found
+    return INVALID_COMMAND; //command Not Found
 }
 
 int parseSelection(Table *table, char *selectionStr, Selection *selection, Selection *tempSelection)
 {
-    char *selectionStrCopy = malloc((strlen(selectionStr) + 1) * sizeof(char));
+    int retVal;
+    char *selectionStrCopy = NULL;
+    if((selectionStrCopy = malloc((strlen(selectionStr) + 1) * sizeof(char))) == NULL)
+        return INVALID_MEMORY_ALLOCATION;
+
     strcpy(selectionStrCopy, selectionStr);
 
     bool isFind = false;
@@ -874,8 +976,7 @@ int parseSelection(Table *table, char *selectionStr, Selection *selection, Selec
             int value = strtol(lastPtr, &endPtr, 10);
             if (value == 0 && endPtr != lastPtr)
             {
-                //error
-                return -1;
+                return INVALID_SELECTION;
             }
             value -= 1;
             if (strcmp(lastPtr, "min") == 0)
@@ -924,7 +1025,7 @@ int parseSelection(Table *table, char *selectionStr, Selection *selection, Selec
                 }
                 else
                 {
-                    //ERROR
+                    return INVALID_SELECTION;
                 }
             }
             else if (strcmp(lastPtr, "-") == 0)
@@ -934,34 +1035,38 @@ int parseSelection(Table *table, char *selectionStr, Selection *selection, Selec
                 else if (arrIndex == 3)
                     selection->toCol = table->rows[0].length - 1;
             }
-            else if (arrIndex == 0)
+            else if(*endPtr == '\0')
             {
-                selection->fromRow = value;
-                selection->toRow = value;
+                if (arrIndex == 0)
+                {
+                    selection->fromRow = value;
+                    selection->toRow = value;
+                }
+                else if (arrIndex == 1)
+                {
+                    selection->fromCol = value;
+                    selection->toCol = value;
+                }
+                else if (arrIndex == 2)
+                    selection->toRow = value;
+                else if (arrIndex == 3)
+                    selection->toCol = value;
             }
-            else if (arrIndex == 1)
+            else
             {
-                selection->fromCol = value;
-                selection->toCol = value;
+                return INVALID_SELECTION;
             }
-            else if (arrIndex == 2)
-                selection->toRow = value;
-            else if (arrIndex == 3)
-                selection->toCol = value;
 
             arrIndex++;
             lastPtr = &selectionStrCopy[i + 1];
         }
     }
-    // printf("fromRow: %d\n", selection->fromRow);
-    // printf("toRow: %d\n", selection->toRow);
-    // printf("fromCol: %d\n", selection->fromCol);
-    // printf("toCol: %d\n", selection->toCol);
 
-    alignTable(table, selection->toRow + 1, selection->toCol + 1);
+    if((retVal = alignTable(table, selection->toRow + 1, selection->toCol + 1)) != 0)
+        return retVal;
 
     free(selectionStrCopy);
-    return 1;
+    return 0;
 }
 
 int getPositionBetweenBrackets(char *str, CmdArgument *cmdArg)
@@ -970,7 +1075,7 @@ int getPositionBetweenBrackets(char *str, CmdArgument *cmdArg)
     cmdArg->position.row = strtol(&str[1], &endPtr, 10) - 1;
     if (endPtr[0] != ',')
     {
-        return -1;
+        return INVALID_COMMAND_ARGUMENT;
     }
     cmdArg->position.col = strtol(&endPtr[1], &endPtr, 10) - 1;
 
@@ -979,6 +1084,7 @@ int getPositionBetweenBrackets(char *str, CmdArgument *cmdArg)
 
 int parseCommands(Table *table, char *cmdSequence, Selection *tempSelection, char *tempVar[10])
 {
+    int retVal;
     char *cmd;
     Selection selection;
     CmdArgument cmdArg;
@@ -988,7 +1094,8 @@ int parseCommands(Table *table, char *cmdSequence, Selection *tempSelection, cha
     {
         if (cmd[0] == '[')
         {
-            parseSelection(table, cmd, &selection, tempSelection);
+            if((retVal = parseSelection(table, cmd, &selection, tempSelection)) != 0)
+                return retVal;
         }
         else
         {
@@ -997,11 +1104,17 @@ int parseCommands(Table *table, char *cmdSequence, Selection *tempSelection, cha
             {
                 space[0] = '\0';
                 if (space[1] == '[')
-                    getPositionBetweenBrackets(&space[1], &cmdArg);
+                {
+                    if((retVal = getPositionBetweenBrackets(&space[1], &cmdArg)) != 0)
+                        return retVal;
+                }
                 else
+                {
                     cmdArg.inputString = &space[1];
+                }
             }
-            commandExecutor(table, cmd, &selection, &cmdArg, tempVar);
+            if((retVal = commandExecutor(table, cmd, &selection, &cmdArg, tempVar)) != 0)
+                return retVal;
         }
         cmd = strtok(NULL, ";");
     }
@@ -1014,6 +1127,7 @@ int main(int argc, char **argv)
     char *delim = " ";
     char *cmdSequence = "";
     char *fileName = "";
+    int retVal;
 
     if (argc == 5)
     {
@@ -1025,8 +1139,7 @@ int main(int argc, char **argv)
         }
         else
         {
-            //INVALID ARGUMENT COUNT
-            return 1;
+            return error(INVALID_ARGUMENT_COUNT);
         }
     }
     else if(argc == 3)
@@ -1036,14 +1149,12 @@ int main(int argc, char **argv)
     }
     else
     {
-        //INVALID ARGUMENT COUNT
-        return 1;
+        return error(INVALID_ARGUMENT_COUNT);
     }
 
-    if (isValidDelim(delim) == 0)
+    if ((retVal = isValidDelim(delim)) != 0)
     {
-        //INVALID DELIMITER
-        return 1;
+        error(retVal);
     }
 
     char *tempVar[TEMP_VAR_COUNT] = {NULL};
@@ -1056,8 +1167,10 @@ int main(int argc, char **argv)
 
     int colCount = loadTableFromFile(&table, fileName, delim);
 
-    alignTable(&table, table.length, colCount);
-    parseCommands(&table, cmdSequence, &tempSelection, tempVar);
+    if((retVal = alignTable(&table, table.length, colCount)) != 0)
+        return error(retVal);
+    if((retVal = parseCommands(&table, cmdSequence, &tempSelection, tempVar)) != 0)
+        return error(retVal);
 
     printTable(&table, delim[0]);
     printTableToFile(&table, delim[0], fileName);
