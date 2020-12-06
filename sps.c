@@ -9,6 +9,7 @@
 #define COMMAND_COUNT 16
 #define TEMP_VAR_COUNT 10
 
+#define INVALID_FILE_OPERATION -1
 #define INVALID_MEMORY_ALLOCATION 1
 #define INVALID_DELIMITER 2
 #define INVALID_COMMAND 3
@@ -16,6 +17,7 @@
 #define INVALID_SELECTION 5
 #define INVALID_COMMAND_ARGUMENT 6
 #define INVALID_VARIABLE 7
+
 
 typedef struct
 {
@@ -74,6 +76,8 @@ int error(int errorCode)
         fprintf(stderr, "Invalid command argument!\n");
     else if(errorCode == INVALID_VARIABLE)
         fprintf(stderr, "Invalid variable specified!\n");
+    else if(errorCode == INVALID_FILE_OPERATION)
+        fprintf(stderr, "Invalid file!\n");
 
     return errorCode;    
 }
@@ -146,6 +150,7 @@ void selection_ctor(Selection *selection)
     selection->toCol = 0;
 }
 
+//Set selection values
 void setSelection(Selection *selection, int fromRow, int toRow, int fromCol, int toCol)
 {
     selection->fromRow = fromRow;
@@ -154,6 +159,7 @@ void setSelection(Selection *selection, int fromRow, int toRow, int fromCol, int
     selection->toCol = toCol;
 }
 
+//Allocate <n> rows to table
 int allocateRowsToTable(Table *table, int n)
 {
     if((table->rows = realloc(table->rows, (table->allocated + n) * sizeof(Row))) == NULL)
@@ -166,6 +172,7 @@ int allocateRowsToTable(Table *table, int n)
     return 0;
 }
 
+//Allocate <n> cells to row
 int allocateCellsToRow(Row *row, int n)
 {
     if((row->cells = realloc(row->cells, (row->allocated + n) * sizeof(Cell))) == NULL)
@@ -175,56 +182,6 @@ int allocateCellsToRow(Row *row, int n)
         cell_ctor(&row->cells[i]);
 
     row->allocated += n;
-    return 0;
-}
-
-int addCellToRow(Table *table, int rowID, char *value)
-{
-    int retVal;
-    if (table->length == table->allocated)
-    {
-        if((retVal = allocateRowsToTable(table, (rowID + 1) - table->allocated)) != 0)
-        {
-            return retVal;
-        }
-
-        table->length = rowID + 1;
-    }
-
-    Row *row = &table->rows[rowID];
-
-    if (row->length == row->allocated)
-        if((retVal = allocateCellsToRow(row, CELL_ALLOC_SIZE)) != 0)
-            return retVal;
-        
-
-    int valueLength = strlen(value);
-
-    if((row->cells[row->length].value = realloc(row->cells[row->length].value, (valueLength + 1) * sizeof(char))) == NULL)
-        return INVALID_MEMORY_ALLOCATION;
-
-    row->cells[row->length].length = valueLength + 1;
-    row->cells[row->length].allocated = valueLength + 1;
-
-    strcpy(row->cells[row->length].value, value);
-    row->length++;
-
-    return 0;
-}
-
-int appendCharToCell(Cell *cell, char c)
-{
-    if (cell->length == cell->allocated)
-    {
-        if((cell->value = realloc(cell->value, (cell->allocated + CELL_ALLOC_SIZE) * sizeof(char))) == NULL)
-            return INVALID_MEMORY_ALLOCATION;
-
-        cell->allocated += CELL_ALLOC_SIZE;
-    }
-
-    cell->value[cell->length] = c;
-    cell->length++;
-
     return 0;
 }
 
@@ -249,6 +206,59 @@ int setCellValue(Cell *cell, char *value)
     return 0;
 }
 
+//Append one cell to row and set value
+int addCellToRow(Table *table, int rowID, char *value)
+{
+    int retVal;
+    if (table->length == table->allocated)
+    {
+        if((retVal = allocateRowsToTable(table, (rowID + 1) - table->allocated)) != 0)
+        {
+            return retVal;
+        }
+
+        table->length = rowID + 1;
+    }
+
+    Row *row = &table->rows[rowID];
+
+    if (row->length == row->allocated)
+        if((retVal = allocateCellsToRow(row, CELL_ALLOC_SIZE)) != 0)
+            return retVal;
+        
+    setCellValue(&row->cells[row->length], value);
+    // int valueLength = strlen(value);
+
+    // if((row->cells[row->length].value = realloc(row->cells[row->length].value, (valueLength + 1) * sizeof(char))) == NULL)
+    //     return INVALID_MEMORY_ALLOCATION;
+
+    // row->cells[row->length].length = valueLength + 1;
+    // row->cells[row->length].allocated = valueLength + 1;
+
+    //strcpy(row->cells[row->length].value, value);
+    row->length++;
+
+    return 0;
+}
+
+//Append a single character to cell
+int appendCharToCell(Cell *cell, char c)
+{
+    if (cell->length == cell->allocated)
+    {
+        if((cell->value = realloc(cell->value, (cell->allocated + CELL_ALLOC_SIZE) * sizeof(char))) == NULL)
+            return INVALID_MEMORY_ALLOCATION;
+
+        cell->allocated += CELL_ALLOC_SIZE;
+    }
+
+    cell->value[cell->length] = c;
+    cell->length++;
+
+    return 0;
+}
+
+//Delim validation
 int isValidDelim(char *delim)
 {
     if (strchr(delim, '"') != NULL)
@@ -270,6 +280,7 @@ bool isCharInString(char c, char *str)
     return false;
 }
 
+//Delete selected rows
 int drow(Table *table, Selection *selection)
 {
     int toRow = (selection->toRow > table->length) ? table->length - 1 : selection->toRow;
@@ -295,6 +306,7 @@ int drow(Table *table, Selection *selection)
     return 0;
 }
 
+//Insert one row above selection
 int irow(Table *table, Selection *selection)
 {
     int retVal;
@@ -320,6 +332,7 @@ int irow(Table *table, Selection *selection)
     return 0;
 }
 
+//Add one row under selection
 int arow(Table *table, Selection *selection)
 {
     int retVal;
@@ -345,6 +358,7 @@ int arow(Table *table, Selection *selection)
     return 0;
 }
 
+//Add one column before selection
 int icol(Table *table, Selection *selection)
 {
     int retVal;
@@ -365,6 +379,7 @@ int icol(Table *table, Selection *selection)
     return 0;
 }
 
+//Add one column after selection
 int acol(Table *table, Selection *selection)
 {
     int retVal;
@@ -385,6 +400,7 @@ int acol(Table *table, Selection *selection)
     return 0;
 }
 
+//Delete selected columns
 int dcol(Table *table, Selection *selection)
 {
     int toCol = (selection->toCol > table->rows->length) ? table->rows->length - 1 : selection->toCol;
@@ -409,6 +425,7 @@ int dcol(Table *table, Selection *selection)
     return 0;
 }
 
+//Clear cell value
 int clear(Table *table, Selection *selection)
 {
     int toRow = (selection->toRow > table->length) ? table->length - 1 : selection->toRow;
@@ -426,6 +443,7 @@ int clear(Table *table, Selection *selection)
     return 0;
 }
 
+//swap selection with <inputArg.position>
 int swap(Table *table, Selection *selection, CmdArgument *inputArg)
 {
     int retVal;
@@ -468,6 +486,7 @@ int swap(Table *table, Selection *selection, CmdArgument *inputArg)
     return 0;
 }
 
+//Calculate the sum of all numeric values in the selection
 void getSelectionSum(Table *table, Selection *selection, double *sum, int *count)
 {
     int toRow = (selection->toRow > table->length) ? table->length - 1 : selection->toRow;
@@ -499,6 +518,7 @@ void getSelectionSum(Table *table, Selection *selection, double *sum, int *count
     }
 }
 
+//Set <inputArg.position> to the sum of all selected numeric values
 int sum(Table *table, Selection *selection, CmdArgument *inputArg)
 {
     int retVal;
@@ -514,6 +534,7 @@ int sum(Table *table, Selection *selection, CmdArgument *inputArg)
     return 0;
 }
 
+//Set <inputArg.position> to the average of all selected numeric values
 int avg(Table *table, Selection *selection, CmdArgument *inputArg)
 {
     int retVal;
@@ -533,6 +554,7 @@ int avg(Table *table, Selection *selection, CmdArgument *inputArg)
     return 0;
 }
 
+//Set the values of the selected cells to <inputArg.inputString>
 int set(Table *table, Selection *selection, CmdArgument *inputArg)
 {
     int retVal = 0;
@@ -551,6 +573,7 @@ int set(Table *table, Selection *selection, CmdArgument *inputArg)
     return 0;
 }
 
+//Set <inputArg.position> to the count of selected non-empty values
 int count(Table *table, Selection *selection, CmdArgument *inputArg)
 {
     int retVal;
@@ -579,6 +602,7 @@ int count(Table *table, Selection *selection, CmdArgument *inputArg)
     return 0;
 }
 
+//Set <inputArg.position> to the length of the selected cell
 int len(Table *table, Selection *selection, CmdArgument *inputArg)
 {
     int retVal;
@@ -593,6 +617,7 @@ int len(Table *table, Selection *selection, CmdArgument *inputArg)
     return 0;
 }
 
+//Set the value of tempVar
 int def(Table *table, Selection *selection, CmdArgument *inputArg, char *tempVar[10])
 {
     char *cellValue = table->rows[selection->fromRow].cells[selection->fromCol].value;
@@ -618,6 +643,7 @@ int def(Table *table, Selection *selection, CmdArgument *inputArg, char *tempVar
     return 0;
 }
 
+//Use the value of tempVar
 int use(Table *table, Selection *selection, CmdArgument *inputArg, char *tempVar[10])
 {
     int toRow = (selection->toRow > table->length) ? table->length - 1 : selection->toRow;
@@ -644,6 +670,7 @@ int use(Table *table, Selection *selection, CmdArgument *inputArg, char *tempVar
     return 0;
 }
 
+//Increment the value of tempVar by 1
 int inc(CmdArgument *inputArg, char *tempVar[10])
 {
     char *endPtr = NULL;
@@ -684,6 +711,7 @@ int inc(CmdArgument *inputArg, char *tempVar[10])
     return 0;
 }
 
+//Align table to the given <rowCount> and <colCount>
 int alignTable(Table *table, int rowCount, int colCount)
 {
     int retVal;
@@ -707,6 +735,7 @@ int alignTable(Table *table, int rowCount, int colCount)
     return 0;
 }
 
+//Find the longest non-empty row in table
 int getMaxRowLength(Table *table)
 {
     int max = 0;
@@ -725,12 +754,16 @@ int getMaxRowLength(Table *table)
 int printTableToFile(Table *table, char delim, char *filename)
 {
     int maxRowLength = getMaxRowLength(table);
-    FILE *outputFile = fopen(filename, "w");
+    FILE *outputFile;
+    if((outputFile = fopen(filename, "w")) == NULL)
+    {
+        return INVALID_FILE_OPERATION;
+    }
     for (int i = 0; i < table->length; i++)
     {
         for (int j = 0; j < maxRowLength; j++)
         {
-            if (j < table->rows[i].length - 1)
+            if (j < maxRowLength - 1)
             {
                 fprintf(outputFile, "%s%c", (table->rows[i].cells[j].value) ? table->rows[i].cells[j].value : "", delim);
             }
@@ -775,7 +808,11 @@ int loadTableFromFile(Table *table, char *filename, char *delim)
     int retVal;
     Cell cell;
     cell_ctor(&cell);
-    FILE *inputFile = fopen(filename, "r");
+    FILE *inputFile;
+    if((inputFile = fopen(filename, "r")) == NULL)
+    {
+        return INVALID_FILE_OPERATION;
+    }
 
     char c;
     int rowID = 0;
@@ -818,6 +855,7 @@ int loadTableFromFile(Table *table, char *filename, char *delim)
     return maxColID;
 }
 
+//Find max number in selection and update the selection to that cell
 int findMaxNumber(Table *table, Selection *selection)
 {
     float max = INT_MIN;
@@ -849,6 +887,7 @@ int findMaxNumber(Table *table, Selection *selection)
     return 0;
 }
 
+//Find min number in selection and update the selection to that cell
 int findMinNumber(Table *table, Selection *selection)
 {
     float min = INT_MAX;
@@ -879,6 +918,7 @@ int findMinNumber(Table *table, Selection *selection)
     return 0;
 }
 
+//Find <str> in selection and update the selection to that cell
 int findString(Table *table, Selection *selection, char *str)
 {
     int rowID, colID;
@@ -904,8 +944,8 @@ typedef struct
     bool inputArg;
     bool tempVar;
 } commandList;
-
-commandList cmdList[COMMAND_COUNT - 1] = {
+//Array of all supported command (without len())
+const commandList cmdList[COMMAND_COUNT - 1] = {
     {"irow", irow, false, false},
     {"arow", arow, false, false},
     {"drow", drow, false, false},
@@ -922,6 +962,7 @@ commandList cmdList[COMMAND_COUNT - 1] = {
     {"def", def, true, true},
     {"use", use, true, true}};
 
+//Execute the given <cmd> over <selection>
 int commandExecutor(Table *table, char *cmd, Selection *selection, CmdArgument *inputArg, char *tempVar[10])
 {
     int retVal;
@@ -951,6 +992,7 @@ int commandExecutor(Table *table, char *cmd, Selection *selection, CmdArgument *
     return INVALID_COMMAND; //command Not Found
 }
 
+//Parse selectoin string
 int parseSelection(Table *table, char *selectionStr, Selection *selection, Selection *tempSelection)
 {
     int retVal;
@@ -1069,6 +1111,7 @@ int parseSelection(Table *table, char *selectionStr, Selection *selection, Selec
     return 0;
 }
 
+//Parse command argument positions
 int getPositionBetweenBrackets(char *str, CmdArgument *cmdArg)
 {
     char *endPtr = NULL;
@@ -1082,11 +1125,13 @@ int getPositionBetweenBrackets(char *str, CmdArgument *cmdArg)
     return 0;
 }
 
+//Parse commands and run them over selections
 int parseCommands(Table *table, char *cmdSequence, Selection *tempSelection, char *tempVar[10])
 {
     int retVal;
     char *cmd;
     Selection selection;
+    selection_ctor(&selection);
     CmdArgument cmdArg;
 
     cmd = strtok(cmdSequence, ";");
@@ -1166,14 +1211,18 @@ int main(int argc, char **argv)
     table_ctor(&table);    
 
     int colCount = loadTableFromFile(&table, fileName, delim);
+    if(colCount < 0)
+        return error(colCount);
 
     if((retVal = alignTable(&table, table.length, colCount)) != 0)
         return error(retVal);
     if((retVal = parseCommands(&table, cmdSequence, &tempSelection, tempVar)) != 0)
         return error(retVal);
 
+    if((retVal = printTableToFile(&table, delim[0], fileName)) != 0)
+        return error(retVal);
     printTable(&table, delim[0]);
-    printTableToFile(&table, delim[0], fileName);
+    
 
     table_dtor(&table);
 
