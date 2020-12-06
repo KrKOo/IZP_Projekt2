@@ -1,3 +1,4 @@
-x,svete,1
-hello,world,2 
-3,4,5
+  Jmeno Plat Prijmeni
+1 1 Bill 15000000 Gates
+2 2 Franta 15000000 Odvedle
+3 3 Pepik 15000000 Ajtak
